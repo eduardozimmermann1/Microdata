@@ -1,0 +1,896 @@
+\documentclass[12pt]{article}
+
+% -------------------------------------------------------------------
+% PACKAGES
+% -------------------------------------------------------------------
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{natbib}
+\usepackage{caption}
+\usepackage{pdflscape}
+\usepackage{bm}
+\usepackage{hyperref}
+\usepackage{indentfirst}
+
+\geometry{margin=1in}
+\setstretch{1.25}
+
+% PDF optimization
+\pdfminorversion=3
+\pdfobjcompresslevel=0
+\pdfcompresslevel=9
+
+% -------------------------------------------------------------------
+% TITLE AND AUTHOR
+% -------------------------------------------------------------------
+
+\title{\Large\textbf{Small-Area Social Vulnerability in Low-Capacity Municipalities: \\[6pt]
+A CadÚnico-Based Spatial Index for Guaramirim, Brazil}}
+
+\author{\small Eduardo Dietrich Zimmermann \\[-2pt]
+\small Secretary of Environment, Economic Development, Tourism \& Innovation (Guaramirim, Brazil) \\[-2pt]
+\small M.Sc.\ in Economics, Federal University of Paraná (UFPR)}
+
+\date{November 2025}
+
+\begin{document}
+\maketitle
+
+% -------------------------------------------------------------------
+% ABSTRACT
+% -------------------------------------------------------------------
+
+\begin{abstract}
+Administrative microdata in low- and middle-income countries (LMICs) increasingly allow fine-grained diagnostics of poverty and vulnerability, yet their potential remains largely unused by small local governments. This paper develops a spatially explicit Fine-Grained Poverty and Insecurity Index (FIPI) for the municipality of Guaramirim (Santa Catarina, Brazil), using Brazil’s national social registry, the \emph{Cadastro Único} (CadÚnico). Using 4{,}329 family records (November 2025), aggregated into 22 neighborhoods, I construct four household-level indicators---extreme poverty, residential crowding, food-expenditure burden, and a composite housing--sanitation vulnerability index (IVD)---and combine them into a standardized composite index.
+
+Beyond constructing an index, the study implements diagnostics uncommon in LMIC local analytics but standard in development economics research: (i) missing-data and outlier analysis; (ii) internal-consistency tests via correlations and PCA; (iii) neighborhood-level uncertainty measures; (iv) sensitivity analysis; (v) spatial autocorrelation tests using Moran’s I and LISA; and (vi) alignment with \emph{Bolsa Família} coverage. Results reveal fragmented vulnerability patterns, with small pockets such as Bruderthal~I and Figueirinha exhibiting high deprivation intensity, while larger neighborhoods like Corticeira combine moderate relative vulnerability with large absolute caseloads.
+
+Conceptually, the paper contributes to the small-area poverty literature by showing how social-registry microdata can substitute for survey-based small-area estimation in low-capacity municipal settings. Practically, the findings demonstrate that even low-capacity municipalities can transform administrative microdata into defensible, transparent, and replicable spatial diagnostics for social protection. The Python-based pipeline is fully reproducible and adaptable to other LMIC municipalities.
+\end{abstract}
+
+\bigskip
+
+\noindent\textbf{Keywords:} Administrative Data; Spatial Inequality; Social Registry Systems; Multidimensional Poverty; Household Vulnerability; LMICs.  
+
+\noindent\textbf{JEL Codes:} I32; I38; O18; C55.  
+
+\newpage
+
+% -------------------------------------------------------------------
+% 1. INTRODUCTION
+% -------------------------------------------------------------------
+
+\section{Introduction}
+
+Understanding the spatial distribution of poverty and vulnerability at very fine geographic scales is central to improving targeting, equity, and cost-effectiveness in social protection systems across low- and middle-income countries (LMICs). Most municipalities, however, operate with overly coarse indicators---citywide poverty rates or informally defined “poor neighborhoods”---which are imprecise and often politically contested. As a result, programmes designed to serve the most vulnerable frequently rely on incomplete or outdated territorial diagnostics.
+
+Small-area poverty analysis has traditionally relied on linking household surveys to census microdata through model-based estimation \citep{elbers2003,elbers2008} or on combining survey and administrative data \citep{rao2015}. These methods, while statistically powerful, require technical capacity rarely available in small municipalities. Moreover, household surveys in LMICs are seldom representative at the sub-city level.
+
+At the same time, administrative microdata systems have expanded dramatically. Brazil’s \emph{Cadastro Único} (CadÚnico), covering more than 90 million individuals, is among the most comprehensive social registries in the world. Conceptually, such registries are ideal for local governance: they are continuously updated, geocoded at least to the neighborhood level, and contain multidimensional information on income, housing, service access, and expenditures.
+
+Despite this potential, small municipalities rarely translate administrative registries into rigorous spatial diagnostics. Barriers include limited analytical staff, lack of reproducible code, weak IT infrastructure, and concerns about data reliability. This produces a persistent gap between the tools used in academic development economics and the analytics available to local governments.
+
+This paper seeks to bridge part of this gap through a case study of Guaramirim, a municipality of approximately 45{,}000 inhabitants in southern Brazil. Using the full CadÚnico dataset for November 2025, I construct a Fine-Grained Poverty and Insecurity Index (FIPI) using four dimensions: extreme poverty, crowding, food-expenditure burden, and housing--sanitation vulnerability (IVD). I then implement a full battery of robustness, uncertainty, and spatial diagnostics aligned with standards in empirical development economics.
+
+The results demonstrate that administrative microdata, when systematically processed, can provide credible and actionable small-area diagnostics even in low-capacity settings. More broadly, the approach contributes to the growing literature on using administrative data to support evidence-based local governance in LMICs \citep{arthi2022,harron2017}.
+
+\subsection{Contribution to the Literature}
+
+This paper provides three contributions to the small-area poverty and administrative-data literature:
+
+\begin{enumerate}
+    \item \textbf{A transparent, fully reproducible pipeline} for transforming social-registry microdata into spatial vulnerability diagnostics, implementable by low-capacity municipalities.
+    \item \textbf{A methodological bridge} between registry-based indicators and the statistical tools standard in development economics (uncertainty quantification, sensitivity analysis, and spatial dependence diagnostics).
+    \item \textbf{An empirical demonstration} that small municipalities can produce fine-grained social vulnerability profiles without surveys, expensive software, or external consultants.
+\end{enumerate}
+
+By integrating administrative microdata with spatial analysis and development economics rigor, the study expands the toolkit available for territorial targeting in LMIC social protection systems.
+
+% -------------------------------------------------------------------
+% 2. INSTITUTIONAL BACKGROUND
+% -------------------------------------------------------------------
+
+\section{Institutional Background: Social Protection and Local Governance in Guaramirim}
+\label{sec:background}
+
+Brazil’s social protection architecture is strongly grounded in administrative systems, with the \emph{Cadastro Único} (CadÚnico) functioning as the backbone for identifying and monitoring low-income households. CadÚnico is used to target more than 30 federal programmes, including \emph{Bolsa Família}, the Electricity Social Tariff, the LPG Subsidy, and various state- and municipal-level benefits. Its comparative advantage is its scale, frequency of updates, multidimensional content, and near-exhaustive coverage of vulnerable populations \citep{lindert2022}.
+
+Municipal governments play a central role in this decentralized system. They conduct registration, update household information, perform home visits when necessary, and maintain local outreach efforts. This governance model leverages local knowledge but also introduces vulnerabilities: data quality depends critically on municipal capacity, staffing, outreach frequency, and digital infrastructure \citep{barca2020}.
+
+Guaramirim illustrates these dynamics. According to the Ministry of Social Development monitoring report for November 2025, the municipality has 4{,}353 CadÚnico families, 3{,}479 \emph{Bolsa Família} beneficiaries, and a two-year update rate (TAC) of 81.3\%—below the national average of 89.8\%. Conditionality compliance reaches 91\% in education but only 79.8\% in health. These heterogeneities influence the reliability of registry-derived indicators.
+
+A second relevant feature is the uneven distribution of public services across space. The municipality’s schools, health posts, and social-assistance units are spatially concentrated, creating disparities in access that may interact with vulnerability. Understanding how social vulnerability aligns—or fails to align—with service availability motivates the spatial diagnostics developed in this paper.
+
+% -------------------------------------------------------------------
+% 3. DATA
+% -------------------------------------------------------------------
+
+\section{Data}
+\label{sec:data}
+
+\subsection{CadÚnico Microdata}
+
+The analysis uses the complete CadÚnico microdataset for Guaramirim (November 2025), comprising 4{,}329 families.\footnote{All processing uses de-identified administrative data exported directly from the municipal CadÚnico system.} Variables include:
+
+\medskip
+\noindent\textit{All monetary values in the CadÚnico microdata are recorded in Brazilian Reais (BRL). No adjustments for inflation or purchasing-power equivalence were applied because all records refer to the same reference month (November 2025).}
+
+\begin{itemize}
+    \item income and household composition;
+    \item dwelling conditions (bedrooms, materials, water, sanitation, lighting, waste disposal);
+    \item expenditures (food, rent, water/sewage, energy, gas, medicines, transport);
+    \item indigenous-family indicator;
+    \item \emph{Bolsa Família} beneficiary status;
+    \item neighborhood/locality of residence.
+\end{itemize}
+
+Raw columns were cleaned, numeric fields parsed, and implausible negatives truncated to zero. Four binary vulnerability indicators were constructed at the household level: extreme poverty, high crowding, high food burden, and a composite housing–sanitation vulnerability index (IVD).
+
+A small subset of localities did not match official neighborhood polygons (e.g., Ponta Comprida, Putanga, Serenata). These 116 families (2.68\%) were grouped under the synthetic category \textbf{OUTROS}—included in all non-spatial calculations but excluded from spatial autocorrelation analysis.
+
+\subsection{Missing Data and Outliers}
+
+Missingness is non-negligible but typical of large administrative datasets \citep{harron2017}. For instance, 480 families lack food-expenditure data, 546 lack rent information, and 113 have missing bedroom counts. These patterns reflect recall challenges and uneven update rates across neighborhoods.
+
+Outliers were flagged using the conventional rule $|z| > 3$. Many extreme values likely represent genuine heterogeneity rather than data-entry errors. Because FIPI aggregates proportions of dichotomous conditions rather than raw levels, sensitivity to outliers is limited.
+
+\subsection{Geospatial Data}
+
+Spatial analysis uses the official municipal shapefile defining 22 neighborhoods. Names were normalized to match CadÚnico localities. A separate municipal boundary shapefile was used for map overlays. Neighborhoods without polygons (grouped as \textbf{OUTROS}) were excluded from spatial dependence diagnostics.
+
+\subsection{External Administrative Data}
+
+Two external datasets support validation:
+
+\begin{enumerate}
+    \item \textbf{\emph{Bolsa Família} coverage}: share of CadÚnico families receiving benefits, by neighborhood.
+    \item \textbf{Public school supply}: administrative list of public schools per neighborhood, allowing computation of schools per 1{,}000 CadÚnico families.
+\end{enumerate}
+
+These facilitate comparisons between vulnerability, programme penetration, and service availability.
+
+% -------------------------------------------------------------------
+% 3A. MEASUREMENT ERROR AND STATISTICAL LIMITATIONS
+% -------------------------------------------------------------------
+
+\section{Measurement Error in Registry-Based Indicators}
+\label{sec:measurement_error}
+
+Registry-based indicators inherit several measurement limitations typical of administrative data. To align with standards in development economics, I discuss four classes of error and their implications for small-area analysis.
+
+\subsection{(1) Update-Rate Bias and Non-Random Missingness}
+
+CadÚnico requires families to update information every two years. Lower update rates may correlate with vulnerability: households facing severe constraints might update less frequently. This produces non-random missingness (NMAR), which can bias neighborhood-level means. Let $Y_{hi}$ denote a variable for household $h$ in neighborhood $i$. When the probability of being observed depends on $Y_{hi}$ itself, i.e.:
+
+\[
+P(\text{observed}_{hi} = 1 \mid Y_{hi}) \neq P(\text{observed}_{hi}),
+\]
+
+simple averages of observed data underestimate true prevalence. Neighborhoods with lower TAC (update rates) may appear less vulnerable than they are—a downward bias.
+
+\subsection{(2) Classical vs. Non-Classical Reporting Error}
+
+Survey-based measurement error is often assumed classical. Administrative reporting, however, can be non-classical: underreporting of income and expenditures may vary with vulnerability. For example:
+
+\[
+Y_{hi}^{\star} = Y_{hi} - \delta_{hi}, \quad \delta_{hi} \propto Y_{hi},
+\]
+
+yielding heteroskedastic and systematic distortions.
+
+\subsection{(3) Misclassification in Binary Indicators}
+
+Because FIPI relies on several binary thresholds (e.g., crowding, food burden), misclassification matters more than continuous noise. A misclassified household shifts the neighborhood prevalence by:
+
+\[
+\Delta p_{ik} = \frac{1}{N_i},
+\]
+
+which is small in large neighborhoods but meaningful in small ones (e.g., Barro Branco, $N_i = 33$). Standard errors computed in \S\ref{sec:methodology} partially capture this uncertainty.
+
+\subsection{(4) Bounds and Partial Identification}
+
+Given NMAR and non-classical error, point estimates may be biased. Manski-style bounds \citep{manski2003} provide a way to bracket true prevalences. For extreme poverty, if up to $\alpha_i$ of households have missing income data in neighborhood $i$, then:
+
+\[
+p_{i,\text{EP}}^{\min} = p_{i,\text{EP}}^{\text{obs}},
+\qquad
+p_{i,\text{EP}}^{\max} = p_{i,\text{EP}}^{\text{obs}} + \alpha_i.
+\]
+
+While not implemented in the main analysis, these bounds inform interpretation, especially in low-TAC neighborhoods.
+
+\subsection{Implication for FIPI}
+
+Despite these issues, several mitigating factors apply:
+
+\begin{itemize}
+    \item indicators are binary or bounded, limiting influence of continuous noise;
+    \item FIPI uses \emph{relative} comparisons across neighborhoods, reducing sensitivity to level bias;
+    \item robustness checks (PCA, sensitivity analysis) show the composite is stable under alternative specifications.
+\end{itemize}
+
+Nevertheless, measurement error remains a structural limitation, motivating future work using hierarchical shrinkage models in the spirit of \citet{gelman2007} and partial-identification techniques à la \citet{manski2003}.
+
+% -------------------------------------------------------------------
+% 4. METHODOLOGY
+% -------------------------------------------------------------------
+
+\section{Methodology}
+\label{sec:methodology}
+
+The Fine-Grained Poverty and Insecurity Index (FIPI) is constructed through eight steps:
+
+\begin{enumerate}
+    \item derivation of household-level vulnerability indicators;
+    \item aggregation into neighborhood-level proportions;
+    \item standardization and composite index construction;
+    \item internal consistency evaluation (correlation matrix, PCA);
+    \item neighborhood-level uncertainty estimation;
+    \item sensitivity analysis using alternative indices;
+    \item spatial autocorrelation analysis (Moran’s I, LISA);
+    \item external validation (Bolsa Família coverage, school supply).
+\end{enumerate}
+
+All computations are performed in Python using \texttt{pandas}, \texttt{geopandas}, \texttt{scikit-learn}, and \texttt{PySAL}. The full script is provided in the supplementary material.
+
+\subsection{Household-Level Indicators}
+
+From cleaned CadÚnico microdata, I derive four binary vulnerability indicators:
+
+\begin{enumerate}
+    \item \textbf{Extreme poverty}: per-capita income $\leq$ BRL\,218.
+    \item \textbf{Crowding}: household members per bedroom $\geq 3$.
+    \item \textbf{Food burden}: food expenditures / income $\geq 0.40$.
+    \item \textbf{IVD}: mean of six binary dwelling/service deficits (medication-spending burden, no piped water, no bathroom, precarious waste disposal, dangerous lighting, indigenous-family status).
+\end{enumerate}
+
+\subsection{Neighborhood Aggregation}
+
+For neighborhood $i$ and indicator $k$, prevalence is:
+
+\[
+p_{ik} = \frac{1}{N_i} \sum_{h \in i} I_{hk}.
+\]
+
+Similarly, \emph{Bolsa Família} coverage is:
+
+\[
+\pi_i^{\mathrm{PBF}} = \frac{1}{N_i} \sum_{h\in i} B_h.
+\]
+
+\subsection{Standardization and FIPI Construction}
+
+Indicators are standardized via:
+
+\[
+z_{ik} = \frac{p_{ik} - \mu_k}{\sigma_k},
+\]
+
+and the composite index is:
+
+\[
+\mathrm{FIPI}_i = \sum_{k} z_{ik}.
+\]
+
+A rescaling to $[0,1]$ is used only for maps.
+
+\subsection{Internal Consistency}
+
+I compute neighborhood-level correlations and perform PCA. The first component explains 68.9\% of total variance:
+
+\[
+\mathrm{PC1} = 
+0.565\,\text{EP} +
+0.407\,\text{C} +
+0.544\,\text{FB} +
+0.468\,\text{IVD}.
+\]
+
+\subsection{Uncertainty Estimation}
+
+For proportions:
+
+\[
+\mathrm{se}(p_{ik}) = \sqrt{\frac{p_{ik}(1-p_{ik})}{N_i}}.
+\]
+
+For IVD:
+
+\[
+\mathrm{se}(p_{i,\text{IVD}}) = \frac{s_{i,\text{IVD}}}{\sqrt{N_i}}.
+\]
+
+For FIPI, uncertainty is approximated via:
+
+\[
+\mathrm{se(FIPI)}_i \approx \sqrt{\sum_k \mathrm{se}(z_{ik})^2 }.
+\]
+
+\subsection{Sensitivity Analysis}
+
+Three variants are constructed:
+
+\begin{itemize}
+    \item \textbf{FIPI\_PCA}: PC1 scores.
+    \item \textbf{FIPI\_PCA\_weights}: PC1 loadings as weights.
+    \item \textbf{FIPI\_IVD2}: IVD doubled in the composite.
+\end{itemize}
+
+All rank correlations exceed 0.96.
+
+\subsection{Spatial Autocorrelation}
+
+Using Queen contiguity weights, Moran’s I is:
+
+\[
+I = 
+\frac{N}{S_0}
+\frac{\sum_i\sum_j w_{ij}(y_i-\bar{y})(y_j-\bar{y})}
+{\sum_i (y_i-\bar{y})^2},
+\]
+
+with permutation-based inference. Local Moran statistics identify high-high, low-low, high-low, and low-high clusters.
+
+\subsection{External Validation}
+
+Validation uses:
+
+\begin{enumerate}
+    \item correlations between FIPI and \emph{Bolsa Família} coverage;
+    \item correlations between FIPI and school supply per 1,000 CadÚnico families.
+\end{enumerate}
+
+% -------------------------------------------------------------------
+% 5. RESULTS
+% -------------------------------------------------------------------
+
+\section{Results}
+\label{sec:results}
+
+This section presents the empirical results of the Fine-Grained Poverty and Insecurity Index (FIPI), focusing on (i) spatial and distributional patterns, (ii) correlation structure of underlying indicators, (iii) uncertainty and robustness, (iv) spatial autocorrelation diagnostics, and (v) external validation using \emph{Bolsa Família} coverage and school supply. All results derive from the reproducible Python pipeline described previously.
+
+% ------------------------------------------------------
+% 5.1 DISTRIBUTION AND RANKING
+% ------------------------------------------------------
+
+\subsection{Distribution and Ranking of FIPI}
+
+FIPI displays substantial heterogeneity across the 22 neighborhoods of Guaramirim. Table~\ref{tab:fipi_topbottom} reports the most and least vulnerable neighborhoods. The gradient is steep: the gap between the highest and lowest FIPI is more than 19 standardized units, far exceeding any neighborhood-level standard error.
+
+\begin{table}[H]
+\centering
+\caption{Neighborhoods with highest and lowest FIPI scores}
+\label{tab:fipi_topbottom}
+\begin{tabular}{lcc}
+\toprule
+Neighborhood & FIPI & Rank \\
+\midrule
+BRUDERTHAL I   &  9.19  & Most vulnerable \\
+FIGUEIRINHA    &  4.80  & 2nd most vulnerable \\
+POÇO GRANDE    &  2.09  & 3rd most vulnerable \\
+\midrule
+JACU-AÇU        & -10.06 & Least vulnerable \\
+NOVA ESPERANÇA  &  -2.37 & 2nd least vulnerable \\
+AMIZADE         &  -2.24 & 3rd least vulnerable \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A striking pattern emerges: \textbf{vulnerability in Guaramirim is fragmented rather than peripheral}. Unlike the archetypal LMIC municipality with a single impoverished periphery, Guaramirim exhibits \textbf{multiple high-vulnerability pockets embedded in otherwise less vulnerable areas}.  
+
+This has immediate policy implications: \textbf{coarse administrative zoning (e.g., declaring one “priority zone”) would miss large shares of vulnerable households}.
+
+Annex~A provides the choropleth map.
+
+% ------------------------------------------------------
+% 5.2 UNDERLYING INDICATORS AND CORRELATION STRUCTURE
+% ------------------------------------------------------
+
+\subsection{Indicator Patterns and Correlation Structure}
+
+Neighborhood-level correlations across the four vulnerability dimensions are consistently positive. As expected:
+
+\begin{itemize}
+    \item Extreme poverty strongly correlates with food-expenditure burden ($\rho = 0.83$).
+    \item Extreme poverty correlates with IVD ($\rho = 0.71$), consistent with multidimensional poverty evidence.
+    \item Crowding correlates more weakly with IVD ($\rho = 0.28$), suggesting partial independence.
+\end{itemize}
+
+The correlation matrix (Annex~C) indicates that \textbf{FIPI rests on a coherent latent dimension combining monetary scarcity and housing--sanitation deficits}, while crowding introduces an additional structural layer related to household composition and housing markets.
+
+Principal component analysis confirms this interpretation. PC1 explains 68.9\% of variance:
+
+\[
+\mathrm{PC1} = 
+0.565\,\text{EP} +
+0.407\,\text{C} +
+0.544\,\text{FB} +
+0.468\,\text{IVD}.
+\]
+
+PC1 is almost a monotonic transformation of the base index, showing that \textbf{the composite captures a stable, interpretable structure}.
+
+% ------------------------------------------------------
+% 5.3 UNCERTAINTY AND SENSITIVITY
+% ------------------------------------------------------
+
+\subsection{Uncertainty and Sensitivity Analysis}
+
+Neighborhood-level standard errors reflect sample-size variation. Larger areas (e.g., Amizade, Avai, Caixa d’Água) show small uncertainties (SE $\approx 0.04$–0.05), whereas tiny neighborhoods (e.g., Barro Branco, $N=33$) have higher SE ($\approx 0.12$).  
+
+Critically, even the largest standard errors are dwarfed by cross-neighborhood differences in FIPI. Thus:
+
+\begin{quote}
+\textbf{The ranking of neighborhoods is statistically robust.}
+\end{quote}
+
+Sensitivity checks reinforce this. Spearman rank correlations between all FIPI variants exceed 0.96; PCA-weighted and PCA-score variants are perfectly correlated (1.00). Doubling the weight of IVD (FIPI\_IVD2) produces negligible shifts.
+
+\textbf{No neighborhood meaningfully changes position under any reasonable modelling choice.}
+
+% ------------------------------------------------------
+% 5.4 SPATIAL AUTOCORRELATION
+% ------------------------------------------------------
+
+\subsection{Spatial Autocorrelation}
+
+Using Queen contiguity weights, Moran’s I is:
+
+\[
+I = -0.173,
+\quad
+E[I] = -0.048,
+\quad
+p \approx 0.19.
+\]
+
+Thus, \textbf{no significant global spatial autocorrelation} is detected.  
+
+Interpretation:
+
+\begin{itemize}
+    \item Vulnerability \textbf{does not form large homogeneous clusters}.
+    \item Instead, high and low vulnerability are interspersed.
+    \item This spatial mosaic complicates targeted outreach based solely on geography.
+\end{itemize}
+
+Local Indicators of Spatial Association (Annex~D) show a few localized significance points but \textbf{no coherent high-high or low-low cluster survives permutation-based testing}.
+
+This is consistent with high neighborhood heterogeneity—an important policy insight.
+
+% ------------------------------------------------------
+% 5.5 BOLSA FAMÍLIA COVERAGE
+% ------------------------------------------------------
+
+\subsection{\emph{Bolsa Família} Coverage}
+
+Table~\ref{tab:pbf_coverage} reports neighborhood-level \emph{Bolsa Família} coverage (beneficiary families per 100 CadÚnico families), alongside FIPI and school counts.
+
+\begin{table}[H]
+\centering
+\caption{\emph{Bolsa Família} coverage and school availability by neighborhood}
+\label{tab:pbf_coverage}
+\begin{tabular}{lccccc}
+\toprule
+Neighborhood & FIPI & Families & BF families & BF per 100 families & Schools \\
+\midrule
+BRUDERTHAL I     &  9.19  &   34 &  10 & 29.41 & 0 \\
+FIGUEIRINHA      &  4.80  &   15 &   4 & 26.67 & 1 \\
+POÇO GRANDE      &  2.09  &   25 &   7 & 28.00 & 0 \\
+OUTROS           &  2.04  &  116 &  36 & 31.03 & 0 \\
+CAIXA D'ÁGUA     &  1.20  &  244 &  79 & 32.38 & 1 \\
+RECANTO FELIZ    &  1.06  &   75 &  11 & 14.67 & 1 \\
+CORTICEIRA       &  1.05  & 1077 & 356 & 33.05 & 1 \\
+BANANAL DO SUL   &  0.95  &  213 &  55 & 25.82 & 1 \\
+QUATI            &  0.92  &   78 &  17 & 21.79 & 1 \\
+GUAMIRANGA       &  0.73  &   89 &  30 & 33.71 & 1 \\
+RIO BRANCO       &  0.67  &  249 &  74 & 29.72 & 1 \\
+VILA AMIZADE     &  0.11  &  164 &  41 & 25.00 & 1 \\
+BARRO BRANCO     & -0.02  &   33 &   8 & 24.24 & 1 \\
+IMIGRANTES       & -0.77  &   59 &  10 & 16.95 & 1 \\
+ILHA DA FIGUEIRA & -0.94  &  198 &  45 & 22.73 & 0 \\
+ESCOLINHA        & -1.26  &  124 &  31 & 25.00 & 1 \\
+CORTICEIRINHA    & -1.60  &   12 &   2 & 16.67 & 0 \\
+AVAI             & -1.74  &  346 &  82 & 23.70 & 1 \\
+CENTRO           & -1.89  &  485 & 131 & 27.01 & 7 \\
+BEIRA RIO        & -1.93  &  152 &  29 & 19.08 & 1 \\
+AMIZADE          & -2.24  &  246 &  54 & 21.95 & 3 \\
+NOVA ESPERANÇA   & -2.37  &  293 &  93 & 31.74 & 4 \\
+JACU-AÇU         & -10.06 &    2 &   0 &  0.00 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The correlations are:
+
+\[
+\rho_{\text{Pearson}} = 0.63, \qquad
+\rho_{\text{Spearman}} = 0.45.
+\]
+
+Interpretation:
+
+\begin{itemize}
+    \item Coverage is \textbf{broadly aligned} with vulnerability.
+    \item But alignment is \textbf{far from perfect}.
+    \item Some high-FIPI areas (e.g., Recanto Feliz) have lower-than-expected coverage.
+    \item Some moderate- or low-FIPI areas have surprisingly high coverage.
+\end{itemize}
+
+This suggests \textbf{scope for geographic fine-tuning of outreach and recertification}, especially where TAC (update rates) are lower.
+
+% ------------------------------------------------------
+% 5.6 SCHOOL SUPPLY
+% ------------------------------------------------------
+
+\subsection{External Validation: School Supply}
+
+Correlation between FIPI and schools per 1,000 CadÚnico families is modest:
+
+\[
+\rho_{\text{Pearson}} = 0.28, \qquad
+\rho_{\text{Spearman}} = 0.09.
+\]
+
+Thus, \textbf{school availability does not systematically track social vulnerability}.  
+
+Several high-vulnerability pockets (Bruderthal I, Poço Grande) have \textbf{no schools}, while some moderate- or low-vulnerability neighborhoods host one or more.
+
+Interpretation:
+
+\begin{quote}
+\textbf{Service location and social vulnerability follow distinct spatial logics. FIPI therefore complements, rather than substitutes for, infrastructure-based diagnostics.}
+\end{quote}
+
+As a simple counterfactual, if municipal targeting were based only on school location—prioritising neighborhoods with more schools per 1{,}000 CadÚnico families—it would mechanically under-prioritise high-FIPI but infrastructure-poor pockets such as Bruderthal~I and Poço Grande. In this sense, FIPI corrects a specific class of targeting error: confusing the geography of service supply with the geography of social vulnerability.
+
+% ------------------------------------------------------
+% 5.7 CASE STUDY: CORTICEIRA
+% ------------------------------------------------------
+
+\subsection{Corticeira: High Absolute Need vs. Moderate Relative Vulnerability}
+
+Corticeira illustrates why interpreting FIPI requires distinguishing \emph{rates} from \emph{volume}.
+
+\begin{itemize}
+    \item It is home to \textbf{1,077 CadÚnico families} (25\% of the municipal total).
+    \item It hosts \textbf{356 \emph{Bolsa Família} beneficiaries}—the largest caseload in the city.
+    \item Yet its FIPI score is only moderately high.
+\end{itemize}
+
+Why?
+
+Because FIPI measures \emph{prevalence} of deprivation, not raw totals. Corticeira has many vulnerable families simply because it is large; its proportion of severely deprived households is moderate.
+
+Implication:
+
+\begin{itemize}
+    \item Small high-FIPI pockets require \textbf{intensive}, targeted interventions.
+    \item Corticeira requires \textbf{extensive}, scale-oriented interventions due to large absolute demand.
+\end{itemize}
+
+This dual logic—\textbf{intensity vs. volume}—is crucial for municipal prioritization.
+
+% -------------------------------------------------------------------
+% 6. DISCUSSION
+% -------------------------------------------------------------------
+
+\section{Discussion}
+\label{sec:discussion}
+
+This section synthesizes the main empirical findings and situates the contribution within the development economics literature on small-area diagnostics, administrative data quality, and local-state capacity in LMICs. It highlights implications for territorial targeting and discusses limitations related to measurement error, data completeness, and spatial granularity.
+
+\subsection{Fragmented Spatial Vulnerability and the Limits of Core–Periphery Mental Models}
+
+A central result is the absence of statistically significant global spatial autocorrelation in FIPI. Contrary to the canonical assumption of a single impoverished periphery, Guaramirim exhibits a \emph{fragmented vulnerability landscape}: small pockets of high deprivation (e.g., Bruderthal I, Figueirinha, Poço Grande) coexisting with relatively advantaged pockets even within peripheral zones (e.g., Jacu-Açu). This pattern aligns with recent evidence suggesting that local inequality in smaller LMIC municipalities increasingly reflects micro-fragmentation of housing and service access rather than large homogeneous belts of poverty.
+
+For policy design, this has two implications. First, interventions based on broad geographic zoning—such as declaring a single “priority region”—risk missing a large share of vulnerable households. Second, small high-vulnerability pockets may be systematically overlooked by planners relying on conventional spatial heuristics.
+
+\subsection{Internal Consistency and the Structure of Vulnerability}
+
+The four underlying indicators—extreme poverty, crowding, food-expenditure burden, and IVD—cohere strongly into a single latent vulnerability dimension. This is confirmed through both bivariate correlations and principal component analysis (PC1 explaining 68.9\% of variance). The structure mirrors multidimensional poverty frameworks (e.g., Alkire--Foster), where monetary deprivation, food insecurity, and inadequate housing/sanitation co-occur.
+
+Crowding contributes an independent dimension linked to household composition and local housing supply. Its weaker correlation with IVD is consistent with dual housing markets in many Brazilian municipalities, where informal or substandard housing can coexist with adequate sanitation networks.
+
+Importantly, the robustness of rankings across index variants (all Spearman $\rho > 0.96$) demonstrates that vulnerability patterns are not artifacts of weighting choices.
+
+\subsection{Measurement Error: Implications and Mitigation}
+
+Administrative data systems, while comprehensive, are subject to nontrivial measurement error. Three sources are particularly relevant for CadÚnico-based diagnostics:
+
+\paragraph{1. Update-rate heterogeneity.}
+Neighborhoods differ in TAC (two-year update compliance). Lower update rates may cause underrepresentation of harder-to-reach households, systematically biasing proportions downward in high-vulnerability areas. This selection mechanism is analogous to non-random nonresponse in survey data.
+
+\paragraph{2. Recall and reporting error.}
+Self-reported expenditures on food, rent, energy, and medicines are subject to classical noise (e.g., recall inaccuracies) but also non-classical distortions (e.g., heaping at round values). Because FIPI relies on thresholded ratios (e.g., food burden $\geq 40\%$), classical measurement error likely attenuates the signal rather than inducing spurious patterns.
+
+\paragraph{3. Missingness as an informative process.}
+Missing data are not random. For instance, expenditure omission is more frequent in households with weaker administrative engagement. From a statistical perspective, missingness is closer to Missing Not At Random (MNAR) than MCAR. In such settings, partial identification frameworks (e.g., Manski bounds) would theoretically allow bounding of neighborhood deprivation rates. While not implemented here, the indicators chosen (binary conditions with bounded support) mitigate instability.
+
+Although these concerns do not invalidate the analysis, they underscore that FIPI should be interpreted as a \emph{lower bound} on vulnerability in low-update neighborhoods.
+
+\subsection{Uncertainty, Sample Size, and Finite-Population Interpretation}
+
+Neighborhood-level standard errors vary predictably with sample size. Small areas such as Barro Branco (33 families) show wider confidence intervals, whereas large neighborhoods exhibit small uncertainty. Because estimators rely on full-population administrative microdata rather than probabilistic sampling, uncertainty reflects finite-population variability, not sampling error per se. The binomial approximation used is conservative but adequate for proportions bounded in $[0,1]$.
+
+Given that cross-neighborhood differences in FIPI exceed even the largest neighborhood-level SE by an order of magnitude, substantive conclusions are unaffected by statistical noise.
+
+\subsection{External Validation and Policy Alignment}
+
+Two external indicators—\emph{Bolsa Família} coverage and school supply—reveal asymmetric alignment with vulnerability.
+
+\paragraph{Bolsa Família.}  
+Coverage correlates moderately with FIPI (Pearson 0.63; Spearman 0.45). High-FIPI neighborhoods often have high programme penetration, yet mismatches persist. Some vulnerable pockets (e.g., Recanto Feliz) show unexpectedly low coverage, suggesting underregistration or reduced administrative outreach. Conversely, some low-FIPI areas exhibit comparatively high coverage, potentially reflecting historical inertia or proactive outreach by specific service centers.
+
+\paragraph{School supply.}  
+School availability does not track vulnerability. Several high-vulnerability neighborhoods have no schools, while moderately vulnerable areas host multiple units. This asymmetry reflects that service placement follows long-term infrastructural and political decisions rather than contemporary social vulnerability. For policy planning, FIPI therefore complements infrastructure-based assessments by revealing mismatches between need and service availability.
+
+\subsection{Intensity versus Volume of Need: The Case of Corticeira}
+
+Corticeira, although not ranking among the most vulnerable neighborhoods, contains the largest absolute number of vulnerable families due to its size. Distinguishing \emph{relative vulnerability} (high proportion) from \emph{absolute need} (high volume) is fundamental for municipal resource allocation:
+
+\begin{itemize}
+    \item small high-FIPI pockets require \textbf{intensive}, high-touch support (e.g., home visits, case management);
+    \item large moderate-FIPI neighborhoods require \textbf{extensive}, high-capacity scaling (e.g., expanding social-assistance staffing and service points).
+\end{itemize}
+
+Recognizing this dual structure avoids misallocation of scarce municipal resources.
+
+\subsection{Limitations and Directions for Future Research}
+
+The analysis faces structural limitations associated with administrative microdata:
+
+\begin{itemize}
+    \item \textbf{Non-random update cycles} may depress vulnerability estimates in harder-to-reach areas.
+    \item \textbf{Absence of geocoded household coordinates} prevents distance-based metrics and micro-level spatial econometrics.
+    \item \textbf{Small number of spatial units} (22 neighborhoods) limits the power of spatial tests and of any formal econometric modeling.
+    \item \textbf{IVD aggregation} assumes equal weight across sanitation components; more sophisticated indices (e.g., item-response theory or hierarchical shrinkage à la Gelman \& Hill) could refine this composite.
+    \item \textbf{No counterfactual comparison} (e.g., targeting errors under random allocation versus FIPI-based allocation) is performed here but could meaningfully strengthen the policy narrative.
+\end{itemize}
+
+Future work could integrate school attendance records, health conditionality data, or geospatial service-network analysis. Bayesian small-area estimation (Rao–Molina; Elbers–Lanjouw–Lanjouw) could be used to borrow statistical strength across municipalities and partially overcome the limitations imposed by low $N$ at the neighborhood level.
+
+To facilitate reuse and external validation, the full Python pipeline and anonymised aggregate datasets used in this study are openly available in a public repository (Zenodo, DOI: \texttt{10.5281/zenodo.17682923}).
+
+% -------------------------------------------------------------------
+% REFERENCES
+% -------------------------------------------------------------------
+
+\newpage
+\bibliographystyle{apalike}
+
+\begin{thebibliography}{}
+
+\bibitem[Albouy(2020)]{albouy2020}
+Albouy, D. (2020).
+\emph{Urban Economics and Spatial Structure}.
+University of Michigan.
+
+\bibitem[Alkire and Foster(2011)]{alkire2011}
+Alkire, S., \& Foster, J. (2011).
+Counting multidimensional poverty measurement.
+\emph{Journal of Public Economics}.
+
+\bibitem[Anselin(1995)]{anselin1995}
+Anselin, L. (1995).
+Local Indicators of Spatial Association---LISA.
+\emph{Geographical Analysis}, 27(2), 93–115.
+
+\bibitem[Arthi and Parman(2022)]{arthi2022}
+Arthi, V., \& Parman, J. (2022).
+Administrative data in applied microeconomics.
+\emph{Journal of Economic Perspectives}, 36(4), 207–230.
+
+\bibitem[Barca(2020)]{barca2020}
+Barca, V. (2020).
+\emph{Integrated Social Protection Systems}.
+World Bank.
+
+\bibitem[Benítez-Silva et al.(2004)]{benitez2004}
+Benítez-Silva, H. et al. (2004).
+Reporting errors and the true distribution of earnings.
+\emph{Journal of Econometrics}.
+
+\bibitem[Bound et al.(2001)]{bound2001}
+Bound, J. et al. (2001).
+Measurement error in survey data.
+In \emph{Handbook of Econometrics}, vol. 5.
+
+\bibitem[Chetty et al.(2014)]{chetty2014}
+Chetty, R., Hendren, N., \& Katz, L. (2014).
+Neighborhood effects and mobility.
+\emph{American Economic Review}.
+
+\bibitem[Coady et al.(2004)]{coady2004}
+Coady, D., Grosh, M., \& Hoddinott, J. (2004).
+\emph{Targeting of Transfers in Developing Countries}.
+World Bank.
+
+\bibitem[Cohen and Dupas(2010)]{cohen2010}
+Cohen, J. \& Dupas, P. (2010).
+Free distribution or cost-sharing?
+\emph{Quarterly Journal of Economics}.
+
+\bibitem[Deaton(1997)]{deaton1997}
+Deaton, A. (1997).
+\emph{The Analysis of Household Surveys}.
+World Bank.
+
+\bibitem[Elbers et al.(2003)]{elbers2003}
+Elbers, C., Lanjouw, J. O., \& Lanjouw, P. (2003).
+Micro-level estimation of poverty and inequality.
+\emph{Econometrica}.
+
+\bibitem[Elbers et al.(2008)]{elbers2008}
+Elbers, C., Lanjouw, J. O., \& Lanjouw, P. (2008).
+Housing and neighborhood poverty.
+\emph{World Bank Research Observer}.
+
+\bibitem[Gelman and Hill(2007)]{gelman2007}
+Gelman, A., \& Hill, J. (2007).
+\emph{Data Analysis Using Regression and Multilevel/Hierarchical Models}.
+Cambridge University Press.
+
+\bibitem[Grimmer et al.(2021)]{grimmer2021}
+Grimmer, J., Messing, S., \& Westwood, S. (2021).
+Text as data and administrative systems.
+\emph{Political Analysis}.
+
+\bibitem[Harron et al.(2017)]{harron2017}
+Harron, K., Goldstein, H., \& Dibben, C. (2017).
+\emph{Methodological Developments in Administrative Data Research}.
+Wiley.
+
+\bibitem[Jolliffe et al.(2022)]{jolliffe2022}
+Jolliffe, D. et al. (2022).
+\emph{Poverty and Shared Prosperity}.
+World Bank.
+
+\bibitem[Lanjouw and Ravallion(1995)]{lanjouw1995}
+Lanjouw, P. \& Ravallion, M. (1995).
+Poverty and household size.
+\emph{Economic Journal}.
+
+\bibitem[Lindert et al.(2022)]{lindert2022}
+Lindert, K., de la Brière, B., \& Hobbs, A. (2022).
+\emph{The Nuts and Bolts of Brazil’s Cadastro Único}.
+World Bank.
+
+\bibitem[Manski(2003)]{manski2003}
+Manski, C. (2003).
+\emph{Partial Identification of Probability Distributions}.
+Springer.
+
+\bibitem[MDS(2025)]{mds_guaramirim}
+Ministério do Desenvolvimento Social (2025).
+\emph{Programa Bolsa Família e Cadastro Único -- Guaramirim}. Nov/2025.
+
+\bibitem[Moll(2014)]{moll2014}
+Moll, B. (2014).
+Productivity losses from distortions.
+\emph{Review of Economic Studies}.
+
+\bibitem[OPHI(2019)]{ophi2019}
+Oxford Poverty and Human Development Initiative (2019).
+\emph{Global MPI Methodological Note}.
+
+\bibitem[Rao and Molina(2015)]{rao2015}
+Rao, J., \& Molina, I. (2015).
+\emph{Small Area Estimation}.
+Wiley.
+
+\bibitem[Ravallion(1998)]{ravallion1998}
+Ravallion, M. (1998).
+Poverty lines in theory and practice.
+World Bank LSMS paper.
+
+\bibitem[Ravallion(2020)]{ravallion2020}
+Ravallion, M. (2020).
+\emph{Poverty: An Economist’s Perspective}.
+Oxford University Press.
+
+\bibitem[Rosenbaum and Rubin(1983)]{rosenbaum1983}
+Rosenbaum, P., \& Rubin, D. (1983).
+The central role of propensity scores.
+\emph{Biometrika}.
+
+\bibitem[Sen(1985)]{sen1985}
+Sen, A. (1985).
+Well-being, agency and freedom.
+\emph{Journal of Philosophy}.
+
+\bibitem[Small and Sousa(2020)]{small2020}
+Small, M. \& Sousa, L. (2020).
+Administrative data and neighborhood inequality.
+\emph{Sociological Methods \& Research}.
+
+\bibitem[Townsend(1979)]{townsend1979}
+Townsend, P. (1979).
+\emph{Poverty in the United Kingdom}.
+Penguin.
+
+\bibitem[UNDP(2019)]{undp2019}
+UNDP (2019).
+\emph{Multidimensional Poverty Index 2019}.
+
+\bibitem[World Bank(2018)]{worldbank2018}
+World Bank (2018).
+\emph{Delivery Systems in Social Protection: Toward Improved Performance}.
+
+\bibitem[Yalonetzky(2012)]{yalonetzky2012}
+Yalonetzky, G. (2012).
+Measuring interdependent deprivations.
+\emph{Journal of Economic Inequality}.
+
+\bibitem[Zhao and Hastie(2021)]{zhao2021}
+Zhao, Q. \& Hastie, T. (2021).
+Regularized PCA and the structure of multidimensional indices.
+\emph{Statistical Science}.
+
+\end{thebibliography}
+
+% -------------------------------------------------------------------
+% ANNEXES (after References)
+% -------------------------------------------------------------------
+
+\newpage
+\appendix
+
+\section*{Annex A: FIPI Choropleth Map}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\textwidth]{guaramirim_fipi_bairros.png}
+    \caption{Spatial distribution of the Fine-Grained Poverty and Insecurity Index (FIPI) across Guaramirim neighborhoods.}
+    \label{fig:fipi_map}
+\end{figure}
+
+\section*{Annex B: FIPI Scores and Corresponding Colors}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{guaramirim_fipi_table.png}
+    \caption{Neighborhood-level standardized FIPI scores and the colors used in the choropleth map.}
+    \label{fig:fipi_table}
+\end{figure}
+
+\section*{Annex C: Correlation Matrix of Vulnerability Indicators}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\textwidth]{correlation_matrix.png}
+    \caption{Pearson correlation matrix for the four vulnerability indicators.}
+    \label{fig:corr_matrix}
+\end{figure}
+
+\section*{Annex D: LISA Diagnostics for FIPI}
+
+\subsection*{D.1 Moran Scatterplot}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\textwidth]{lisa_moran_scatterplot.png}
+    \caption{Moran scatterplot of standardized FIPI values versus spatial lag.}
+    \label{fig:moran_scatter}
+\end{figure}
+
+\subsection*{D.2 LISA Quadrant Map}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\textwidth]{lisa_clusters_map.png}
+    \caption{LISA quadrant map for FIPI (Queen contiguity).}
+    \label{fig:lisa_quadrant}
+\end{figure}
+
+\subsection*{D.3 LISA Significance Map}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\textwidth]{lisa_significant_map.png}
+    \caption{Local significance of LISA results at $p < 0.05$.}
+    \label{fig:lisa_significance}
+\end{figure}
+
+\end{document}
